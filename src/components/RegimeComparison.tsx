@@ -2,6 +2,7 @@
 import React from "react";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { cn } from "@/lib/utils";
 
 interface RegimeProps {
   oldRegimeTax: number;
@@ -38,8 +39,13 @@ export function RegimeComparison({
             <span className="text-sm font-medium">Old Regime</span>
             <span className="text-sm font-semibold">{formatCurrency(oldRegimeTax)}</span>
           </div>
-          <Progress value={oldPercentage} className="h-2 bg-secondary" 
-            indicatorClassName="bg-tax-secondary" />
+          <div className="relative w-full">
+            <Progress value={oldPercentage} className="h-2 bg-secondary" />
+            <div 
+              className="absolute top-0 left-0 h-2 bg-tax-secondary rounded-full" 
+              style={{ width: `${oldPercentage}%` }} 
+            />
+          </div>
         </div>
         
         <div className="space-y-2">
@@ -47,8 +53,13 @@ export function RegimeComparison({
             <span className="text-sm font-medium">New Regime</span>
             <span className="text-sm font-semibold">{formatCurrency(newRegimeTax)}</span>
           </div>
-          <Progress value={newPercentage} className="h-2 bg-secondary" 
-            indicatorClassName="bg-tax-primary" />
+          <div className="relative w-full">
+            <Progress value={newPercentage} className="h-2 bg-secondary" />
+            <div 
+              className="absolute top-0 left-0 h-2 bg-tax-primary rounded-full" 
+              style={{ width: `${newPercentage}%` }} 
+            />
+          </div>
         </div>
       </div>
       
