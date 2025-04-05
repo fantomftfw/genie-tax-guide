@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { Upload, Check } from "lucide-react";
+import { Upload, Check, File, FileText } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
@@ -52,11 +52,12 @@ export function FileUploadCard({
   };
 
   const handleFile = (file: File) => {
-    if (isUploading || isComplete) return;
+    if (isUploading) return;
     
     setIsUploading(true);
     setFileName(file.name);
-
+    setIsComplete(false);
+    
     // Simulate upload progress
     let progress = 0;
     const interval = setInterval(() => {
@@ -65,11 +66,25 @@ export function FileUploadCard({
       
       if (progress >= 100) {
         clearInterval(interval);
-        setIsUploading(false);
-        setIsComplete(true);
-        if (onFileUpload) onFileUpload(file);
+        
+        // Simulate a small delay before marking as complete
+        setTimeout(() => {
+          setIsUploading(false);
+          setIsComplete(true);
+          if (onFileUpload) onFileUpload(file);
+        }, 500);
       }
     }, 100);
+  };
+
+  const getFileIcon = () => {
+    if (fileName.toLowerCase().endsWith('.pdf')) {
+      return <FileText className="h-6 w-6 text-red-500" />;
+    }
+    if (fileName.toLowerCase().match(/\.(jpe?g|png|gif)$/)) {
+      return <FileText className="h-6 w-6 text-blue-500" />;
+    }
+    return <File className="h-6 w-6 text-gray-500" />;
   };
 
   const reset = () => {
@@ -82,22 +97,22 @@ export function FileUploadCard({
   return (
     <Card 
       className={cn(
-        "border-dashed transition-all", 
-        isDragging ? "border-tax-primary bg-tax-light/30" : "border-border", 
+        "border-dashed transition-all h-full", 
+        isDragging ? "border-accent bg-accent/5 shadow-md" : "border-border", 
         className
       )}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      <CardContent className="p-6 flex flex-col items-center justify-center text-center min-h-[200px]">
+      <CardContent className="p-6 flex flex-col items-center justify-center text-center h-full">
         {!isUploading && !isComplete ? (
           <>
-            <div className="w-12 h-12 rounded-full bg-tax-light flex items-center justify-center mb-4">
-              <Upload className="h-6 w-6 text-tax-primary" />
+            <div className="w-16 h-16 rounded-full bg-accent/20 flex items-center justify-center mb-4 animate-pulse-slow">
+              <Upload className="h-8 w-8 text-accent" />
             </div>
             <h3 className="text-lg font-medium mb-1">{title}</h3>
-            <p className="text-sm text-muted-foreground mb-4">{description}</p>
+            <p className="text-sm text-muted-foreground mb-6">{description}</p>
             <label className="inline-block">
               <input
                 type="file"
@@ -105,43 +120,53 @@ export function FileUploadCard({
                 accept={acceptedFiles}
                 onChange={handleFileChange}
               />
-              <span className="px-4 py-2 rounded-lg bg-tax-primary text-white text-sm font-medium cursor-pointer hover:bg-tax-primary/90 transition-colors inline-block">
+              <div className="px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium cursor-pointer hover:bg-accent/90 shadow-sm hover:shadow transition-all inline-flex items-center gap-2">
+                <Upload className="h-4 w-4" />
                 Browse Files
-              </span>
+              </div>
             </label>
             <p className="text-xs text-muted-foreground mt-4">
-              Drag and drop or click to browse
+              PDF, JPG, PNG up to 10MB
             </p>
           </>
         ) : (
           <div className="w-full">
-            <div className="flex items-center mb-2">
-              <div className="w-10 h-10 rounded-full bg-tax-light flex items-center justify-center mr-3">
+            <div className="flex items-center mb-4">
+              <div className="w-12 h-12 rounded-full bg-accent/20 flex items-center justify-center mr-4">
                 {isComplete ? (
-                  <Check className="h-5 w-5 text-tax-primary" />
+                  <Check className="h-6 w-6 text-accent" />
                 ) : (
-                  <Upload className="h-5 w-5 text-tax-primary" />
+                  getFileIcon()
                 )}
               </div>
               <div className="flex-1 text-left">
-                <p className="text-sm font-medium truncate max-w-[200px]">{fileName}</p>
-                <p className="text-xs text-muted-foreground">
+                <p className="font-medium truncate max-w-[200px]">{fileName}</p>
+                <p className="text-sm text-muted-foreground">
                   {isComplete ? "Upload complete" : "Uploading..."}
                 </p>
               </div>
             </div>
             
             {isUploading && (
-              <Progress value={uploadProgress} className="h-1 w-full mt-2" />
+              <>
+                <Progress value={uploadProgress} className="h-1.5 mb-1" />
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>{uploadProgress}%</span>
+                  <span>{Math.round(uploadProgress * 1.8)} KB / {Math.round(100 * 1.8)} KB</span>
+                </div>
+              </>
             )}
             
             {isComplete && (
-              <button
-                onClick={reset}
-                className="text-sm text-tax-primary hover:underline mt-4"
-              >
-                Upload another file
-              </button>
+              <div className="mt-6 text-center">
+                <p className="text-sm text-green-600 mb-4">File uploaded successfully!</p>
+                <button
+                  onClick={reset}
+                  className="text-sm px-4 py-2 border border-border rounded-md hover:bg-muted transition-colors"
+                >
+                  Upload another file
+                </button>
+              </div>
             )}
           </div>
         )}

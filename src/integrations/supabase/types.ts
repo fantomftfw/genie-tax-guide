@@ -9,7 +9,78 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      extracted_data: {
+        Row: {
+          basic_salary: number | null
+          created_at: string
+          document_id: string | null
+          financial_year: string
+          hra: number | null
+          id: string
+          lta: number | null
+          pf_contribution: number | null
+          professional_tax: number | null
+          special_allowance: number | null
+          tds_deducted: number | null
+          user_id: string
+        }
+        Insert: {
+          basic_salary?: number | null
+          created_at?: string
+          document_id?: string | null
+          financial_year: string
+          hra?: number | null
+          id?: string
+          lta?: number | null
+          pf_contribution?: number | null
+          professional_tax?: number | null
+          special_allowance?: number | null
+          tds_deducted?: number | null
+          user_id: string
+        }
+        Update: {
+          basic_salary?: number | null
+          created_at?: string
+          document_id?: string | null
+          financial_year?: string
+          hra?: number | null
+          id?: string
+          lta?: number | null
+          pf_contribution?: number | null
+          professional_tax?: number | null
+          special_allowance?: number | null
+          tds_deducted?: number | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          full_name: string | null
+          id: string
+          onboarding_completed: boolean | null
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          full_name?: string | null
+          id: string
+          onboarding_completed?: boolean | null
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          onboarding_completed?: boolean | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
