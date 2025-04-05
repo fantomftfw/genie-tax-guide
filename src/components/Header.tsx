@@ -4,8 +4,8 @@ import { useNavigate } from "react-router-dom";
 import { Bell, Menu, Search, Upload, User, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 import { 
   DropdownMenu, 
   DropdownMenuContent, 
@@ -21,30 +21,19 @@ interface HeaderProps {
 }
 
 export function Header({ onMenuClick }: HeaderProps) {
-  const [user, setUser] = useState<any>(null);
+  const { authState, signOut } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   
-  // Check for user session
-  useState(() => {
-    const getUser = async () => {
-      const { data } = await supabase.auth.getUser();
-      if (data?.user) {
-        setUser(data.user);
-      }
-    };
-    getUser();
-  });
-  
   const handleSignOut = async () => {
     try {
-      await supabase.auth.signOut();
+      await signOut();
       toast({
         title: "Signed out successfully",
         description: "You have been signed out of your account.",
       });
       navigate("/auth");
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Error signing out",
         description: "Please try again.",
@@ -54,8 +43,8 @@ export function Header({ onMenuClick }: HeaderProps) {
   };
   
   const getInitials = () => {
-    if (!user?.email) return "U";
-    return user.email.substring(0, 1).toUpperCase();
+    if (!authState.user?.email) return "U";
+    return authState.user.email.substring(0, 1).toUpperCase();
   };
   
   return (

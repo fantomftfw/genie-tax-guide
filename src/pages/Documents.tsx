@@ -8,73 +8,70 @@ import { FileUploadCard } from "@/components/FileUploadCard";
 import { Eye, Download, Trash2, FileText, UploadCloud, Camera, AlertCircle, Smartphone } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
+
+// Mock data for documents
+const mockDocuments = [
+  {
+    id: "doc1",
+    name: "Form 16 (2023-24).pdf",
+    type: "application/pdf",
+    created_at: new Date().toISOString(),
+    metadata: { size: 245000, mimetype: "application/pdf" }
+  },
+  {
+    id: "doc2",
+    name: "Salary Slip March 2023.pdf",
+    type: "application/pdf",
+    created_at: new Date(Date.now() - 86400000).toISOString(),
+    metadata: { size: 128000, mimetype: "application/pdf" }
+  }
+];
 
 export default function Documents() {
   const [documents, setDocuments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const { toast } = useToast();
+  const { authState } = useAuth();
   const isMobile = useIsMobile();
   
   useEffect(() => {
-    fetchDocuments();
-  }, []);
-  
-  const fetchDocuments = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      
-      const { data, error } = await supabase.storage
-        .from('documents')
-        .list(user.id + '/', {
-          sortBy: { column: 'created_at', order: 'desc' },
-        });
-        
-      if (error) throw error;
-      
-      setDocuments(data || []);
-    } catch (error: any) {
-      console.error('Error fetching documents:', error);
-      toast({
-        title: 'Error fetching documents',
-        description: error.message,
-        variant: 'destructive',
-      });
-    } finally {
+    // Simulate loading documents
+    setTimeout(() => {
+      setDocuments(mockDocuments);
       setLoading(false);
-    }
-  };
+    }, 1000);
+  }, []);
   
   const handleFileUpload = async (file: File) => {
     try {
       setUploading(true);
       
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
+      // Simulate upload delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
       
-      const filePath = `${user.id}/${Date.now()}-${file.name}`;
+      // Create mock document entry
+      const newDoc = {
+        id: `doc-${Date.now()}`,
+        name: file.name,
+        type: file.type,
+        created_at: new Date().toISOString(),
+        metadata: { size: file.size, mimetype: file.type }
+      };
       
-      const { error } = await supabase.storage
-        .from('documents')
-        .upload(filePath, file);
-        
-      if (error) throw error;
+      setDocuments(prev => [newDoc, ...prev]);
       
       toast({
         title: 'Document uploaded successfully',
         description: 'We are now processing your document.',
       });
-      
-      // Refresh the documents list
-      fetchDocuments();
     } catch (error: any) {
       console.error('Error uploading file:', error);
       toast({
         title: 'Error uploading document',
-        description: error.message,
+        description: error.message || "An unknown error occurred",
         variant: 'destructive',
       });
     } finally {
@@ -82,29 +79,19 @@ export default function Documents() {
     }
   };
   
-  const handleDeleteDocument = async (path: string) => {
+  const handleDeleteDocument = async (id: string) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not authenticated');
-      
-      const { error } = await supabase.storage
-        .from('documents')
-        .remove([path]);
-        
-      if (error) throw error;
+      setDocuments(documents.filter(doc => doc.id !== id));
       
       toast({
         title: 'Document deleted',
         description: 'The document has been removed.',
       });
-      
-      // Update the documents list
-      setDocuments(documents.filter(doc => doc.name !== path));
     } catch (error: any) {
       console.error('Error deleting document:', error);
       toast({
         title: 'Error deleting document',
-        description: error.message,
+        description: error.message || "An unknown error occurred",
         variant: 'destructive',
       });
     }
@@ -199,7 +186,11 @@ export default function Documents() {
                               <div className="w-8 h-8 rounded-lg bg-accent/20 flex items-center justify-center">
                                 <FileText className="h-4 w-4 text-accent" />
                               </div>
-                              <span className="font-medium truncate max-w-[150px] md:max-w-xs">{doc.name.split('/').pop()}</span>
+                              <span className="font-medium truncate max-w-[150px] md:max-w-xs">
+                                {typeof doc.name === 'string' && doc.name.includes('/') 
+                                  ? doc.name.split('/').pop() 
+                                  : doc.name}
+                              </span>
                             </div>
                           </td>
                           <td className="py-3 px-4 text-muted-foreground hidden md:table-cell">
@@ -225,7 +216,7 @@ export default function Documents() {
                                 variant="ghost" 
                                 size="icon" 
                                 className="text-destructive"
-                                onClick={() => handleDeleteDocument(doc.name)}
+                                onClick={() => handleDeleteDocument(doc.id)}
                               >
                                 <Trash2 className="h-4 w-4" />
                                 <span className="sr-only">Delete</span>
