@@ -1,11 +1,10 @@
 
-import { useState, useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import Dashboard from "./pages/Dashboard";
 import Calculator from "./pages/Calculator";
 import Documents from "./pages/Documents";
@@ -15,83 +14,8 @@ import Onboarding from "./pages/Onboarding";
 
 const queryClient = new QueryClient();
 
-type User = {
-  id: string;
-  email?: string;
-} | null;
-
-export type AuthState = {
-  user: User;
-  session: any;
-  isLoading: boolean;
-};
-
-const App = () => {
-  const [authState, setAuthState] = useState<AuthState>({
-    user: null,
-    session: null,
-    isLoading: true,
-  });
-  const [profile, setProfile] = useState<any>(null);
-
-  useEffect(() => {
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setAuthState({
-          user: session?.user ?? null,
-          session,
-          isLoading: false,
-        });
-
-        // If user is logged in, fetch their profile
-        if (session?.user) {
-          // Use setTimeout to avoid potential deadlocks with Supabase auth
-          setTimeout(() => {
-            fetchUserProfile(session.user.id);
-          }, 0);
-        } else {
-          setProfile(null);
-        }
-      }
-    );
-
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setAuthState({
-        user: session?.user ?? null,
-        session,
-        isLoading: false,
-      });
-
-      // If user is logged in, fetch their profile
-      if (session?.user) {
-        fetchUserProfile(session.user.id);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const fetchUserProfile = async (userId: string) => {
-    try {
-      // Fix the TypeScript error by using the correct type-safe approach
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      if (error) {
-        console.error("Error fetching profile:", error);
-        return;
-      }
-
-      setProfile(data);
-    } catch (error) {
-      console.error("Error fetching profile:", error);
-    }
-  };
+const AppRoutes = () => {
+  const { authState, profile } = useAuth();
 
   const AuthenticatedRoute = ({ children }: { children: React.ReactNode }) => {
     if (authState.isLoading) {
@@ -133,26 +57,34 @@ const App = () => {
   };
 
   return (
+    <Routes>
+      {/* Authenticated routes */}
+      <Route path="/" element={<AuthenticatedRoute><Dashboard /></AuthenticatedRoute>} />
+      <Route path="/calculator" element={<AuthenticatedRoute><Calculator /></AuthenticatedRoute>} />
+      <Route path="/documents" element={<AuthenticatedRoute><Documents /></AuthenticatedRoute>} />
+      <Route path="/onboarding" element={<AuthenticatedRoute><Onboarding /></AuthenticatedRoute>} />
+
+      {/* Unauthenticated routes */}
+      <Route path="/auth" element={<UnAuthenticatedRoute><Auth /></UnAuthenticatedRoute>} />
+
+      {/* Catch-all route */}
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+};
+
+const App = () => {
+  return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            {/* Authenticated routes */}
-            <Route path="/" element={<AuthenticatedRoute><Dashboard /></AuthenticatedRoute>} />
-            <Route path="/calculator" element={<AuthenticatedRoute><Calculator /></AuthenticatedRoute>} />
-            <Route path="/documents" element={<AuthenticatedRoute><Documents /></AuthenticatedRoute>} />
-            <Route path="/onboarding" element={<AuthenticatedRoute><Onboarding /></AuthenticatedRoute>} />
-
-            {/* Unauthenticated routes */}
-            <Route path="/auth" element={<UnAuthenticatedRoute><Auth /></UnAuthenticatedRoute>} />
-
-            {/* Catch-all route */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <AppRoutes />
+          </BrowserRouter>
+        </TooltipProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 };

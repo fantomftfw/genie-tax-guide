@@ -1,49 +1,22 @@
-
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 import { Check, ArrowRight, Upload, FileText } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Onboarding() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [session, setSession] = useState<any>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
-  
-  useEffect(() => {
-    // Check if user is signed in
-    const checkUser = async () => {
-      try {
-        const { data } = await supabase.auth.getSession();
-        if (!data.session) {
-          navigate("/auth");
-          return;
-        }
-        setSession(data.session);
-      } catch (error) {
-        console.error("Error checking auth session:", error);
-        navigate("/auth");
-      }
-    };
-    checkUser();
-  }, [navigate]);
+  const { updateProfile } = useAuth();
   
   const completeOnboarding = async () => {
-    if (!session?.user) return;
-    
     setLoading(true);
     try {
-      // Fix the TypeScript error by using the correct type-safe approach
-      const { error } = await supabase
-        .from('profiles')
-        .update({ onboarding_completed: true })
-        .eq('id', session.user.id);
-        
-      if (error) throw error;
+      await updateProfile({ onboarding_completed: true });
       
       toast({
         title: "Welcome to TaxGenie!",
