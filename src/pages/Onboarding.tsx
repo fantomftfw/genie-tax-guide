@@ -1,17 +1,24 @@
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
-import { Check, ArrowRight, Upload, FileText } from "lucide-react";
+import { Check, ArrowRight, Upload, FileText, X } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { cn } from "@/lib/utils";
 
 export default function Onboarding() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [parsedSalaryData, setParsedSalaryData] = useState<Record<string, any> | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { updateProfile } = useAuth();
+  const { authState, profile, updateProfile } = useAuth();
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const completeOnboarding = async () => {
     setLoading(true);
@@ -33,6 +40,78 @@ export default function Onboarding() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+  
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      console.log("File selected:", file);
+      setSelectedFile(file);
+      setUploadError(null);
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  const handleTriggerFileInput = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleUpload = async (): Promise<boolean> => {
+    if (!selectedFile) {
+      setUploadError("Please select a file first.");
+      return false;
+    }
+    if (!authState.token) {
+        setUploadError("Authentication error. Please log in again.");
+        return false;
+    }
+
+    setIsUploading(true);
+    setUploadError(null);
+    console.log("Starting upload for:", selectedFile.name);
+
+    const formData = new FormData();
+    formData.append('document', selectedFile);
+
+    try {
+       const response = await fetch('/api/documents/upload', {
+         method: 'POST',
+         body: formData,
+         headers: {
+             'Authorization': `Bearer ${authState.token}`,
+         }
+       });
+
+       const result = await response.json();
+       if (!response.ok) {
+           throw new Error(result.error || `Upload failed with status: ${response.status}`);
+       }
+
+       console.log("Upload successful, Backend Response:", result);
+       if (result.parsedData) {
+           setParsedSalaryData(result.parsedData);
+       }
+       toast({
+         title: "Upload Successful",
+         description: `${selectedFile.name} uploaded and basic text extracted.`,
+       });
+       setIsUploading(false);
+       return true;
+
+    } catch (error: any) {
+      console.error("Upload failed:", error);
+      const errorMessage = error.message || "An unknown error occurred during upload.";
+      setUploadError(errorMessage);
+      toast({
+        title: "Upload Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      setIsUploading(false);
+      return false;
     }
   };
   
@@ -108,19 +187,61 @@ export default function Onboarding() {
               </p>
             </div>
             
-            <div className="border-2 border-dashed border-border rounded-lg p-8 bg-card/50 cursor-pointer hover:bg-card/80 transition-colors">
-              <div className="flex flex-col items-center gap-3">
-                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Upload className="h-8 w-8 text-primary" />
-                </div>
-                <h3 className="font-medium">Drag & drop your document here</h3>
-                <p className="text-sm text-muted-foreground">or click to browse files</p>
-                <Button variant="outline" className="mt-2">
-                  Choose file
-                </Button>
-              </div>
+            <div
+              className={`border-2 border-dashed border-border rounded-lg p-8 bg-card/50 ${!isUploading ? 'cursor-pointer hover:bg-card/80' : 'opacity-70'} transition-colors`}
+              onClick={!isUploading ? handleTriggerFileInput : undefined}
+            >
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileSelect}
+                accept=".pdf,.jpg,.jpeg,.png"
+                style={{ display: 'none' }}
+                disabled={isUploading}
+              />
+
+              {!selectedFile && !isUploading && (
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+                      <Upload className="h-8 w-8 text-primary" />
+                    </div>
+                    <h3 className="font-medium">Drag & drop your document here</h3>
+                    <p className="text-sm text-muted-foreground">or click to browse files</p>
+                    <Button variant="outline" className="mt-2" onClick={handleTriggerFileInput}>
+                      Choose file
+                    </Button>
+                  </div>
+              )}
+
+              {selectedFile && !isUploading && (
+                 <div className="flex flex-col items-center gap-3">
+                     <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
+                       <FileText className="h-8 w-8 text-green-700" />
+                     </div>
+                     <h3 className="font-medium truncate max-w-xs">{selectedFile.name}</h3>
+                     <p className="text-sm text-muted-foreground">Ready to upload</p>
+                     <div className="flex gap-2 mt-2">
+                         <Button variant="outline" size="sm" onClick={handleTriggerFileInput}>Change file</Button>
+                         <Button variant="ghost" size="sm" onClick={() => {setSelectedFile(null); setUploadError(null);}}><X className="h-4 w-4 mr-1"/>Clear</Button>
+                     </div>
+                 </div>
+              )}
+
+              {isUploading && (
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center animate-pulse">
+                      <Upload className="h-8 w-8 text-primary" />
+                    </div>
+                    <h3 className="font-medium">Uploading...</h3>
+                    <p className="text-sm text-muted-foreground truncate max-w-xs">{selectedFile?.name}</p>
+                  </div>
+              )}
             </div>
-            
+
+            {uploadError && (
+                <p className="text-sm text-red-600">Error: {uploadError}</p>
+            )}
+
             <p className="text-sm text-muted-foreground">
               You can also do this later from your dashboard
             </p>
@@ -130,6 +251,19 @@ export default function Onboarding() {
       case 3:
         return (
           <div className="space-y-6 text-center">
+            {parsedSalaryData && (
+              <div className="mb-6 p-4 border rounded-lg bg-muted/50 text-left">
+                <h4 className="font-semibold mb-2 text-center">Extracted Data from: {parsedSalaryData.fileName}</h4>
+                <div className="space-y-1 text-sm">
+                    <div className="flex justify-between"><span>Basic:</span> <span>{parsedSalaryData.basic ? `₹ ${parsedSalaryData.basic.toLocaleString('en-IN')}` : 'N/A'} (Monthly)</span></div>
+                    <div className="flex justify-between"><span>HRA:</span> <span>{parsedSalaryData.hra ? `₹ ${parsedSalaryData.hra.toLocaleString('en-IN')}` : 'N/A'} (Monthly)</span></div>
+                    <div className="flex justify-between"><span>Special Allowance:</span> <span>{parsedSalaryData.specialAllowance ? `₹ ${parsedSalaryData.specialAllowance.toLocaleString('en-IN')}` : 'N/A'} (Monthly)</span></div>
+                    <div className="flex justify-between"><span>Gross Earnings:</span> <span>{parsedSalaryData.grossEarnings ? `₹ ${parsedSalaryData.grossEarnings.toLocaleString('en-IN')}` : 'N/A'} (Monthly)</span></div>
+                    <div className="flex justify-between font-medium mt-2"><span>Est. Annual Gross:</span> <span>{parsedSalaryData.estimatedAnnualGross ? `₹ ${parsedSalaryData.estimatedAnnualGross.toLocaleString('en-IN')}` : 'N/A'}</span></div>
+                </div>
+              </div>
+            )}
+
             <div className="mx-auto bg-green-100 w-20 h-20 rounded-full flex items-center justify-center">
               <Check className="h-10 w-10 text-green-600" />
             </div>
@@ -200,7 +334,7 @@ export default function Onboarding() {
               <Button
                 variant="outline"
                 onClick={() => setStep(step - 1)}
-                disabled={loading}
+                disabled={loading || isUploading}
               >
                 Back
               </Button>
@@ -209,20 +343,36 @@ export default function Onboarding() {
             )}
             
             <Button
-              onClick={() => {
+              variant="default"
+              onClick={async () => {
                 if (step === 3) {
                   completeOnboarding();
+                } else if (step === 2) {
+                  if (selectedFile) {
+                     const uploadSuccess = await handleUpload();
+                     if (uploadSuccess) {
+                        setStep(step + 1);
+                     }
+                  } else {
+                     setStep(step + 1);
+                  }
                 } else {
-                  setStep(step + 1);
+                   setStep(step + 1);
                 }
               }}
-              disabled={loading}
-              className="flex-1"
+              disabled={loading || isUploading}
+              className={cn(
+                "flex-1"
+              )}
             >
               {step === 3 
                 ? (loading ? 'Finishing...' : 'Go to Dashboard')
-                : 'Continue'}
-              {step < 3 && <ArrowRight className="ml-2 h-4 w-4" />}
+                : (step === 2 && isUploading) 
+                  ? 'Uploading...'
+                  : (step === 2 && selectedFile)
+                    ? 'Upload & Continue'
+                    : 'Continue'}
+              {step < 3 && !isUploading && <ArrowRight className="ml-2 h-4 w-4" />}
             </Button>
           </div>
         </div>

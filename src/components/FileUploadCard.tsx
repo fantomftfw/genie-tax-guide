@@ -1,9 +1,9 @@
-
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Upload, Check, File, FileText } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
+import { Button } from "./ui/button";
 
 interface FileUploadCardProps {
   title: string;
@@ -11,6 +11,7 @@ interface FileUploadCardProps {
   acceptedFiles?: string;
   onFileUpload?: (file: File) => void;
   className?: string;
+  disabled?: boolean;
 }
 
 export function FileUploadCard({
@@ -19,69 +20,84 @@ export function FileUploadCard({
   acceptedFiles = "application/pdf,image/jpeg,image/png",
   onFileUpload,
   className,
+  disabled,
 }: FileUploadCardProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
-  const [fileName, setFileName] = useState("");
+  const [fileName, setFileName] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    setIsDragging(true);
+    e.stopPropagation();
+    if (!disabled) setIsDragging(true);
   };
 
-  const handleDragLeave = (e: React.DragEvent) => {
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
+    e.stopPropagation();
     setIsDragging(false);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
+    e.stopPropagation();
+    if (!disabled && e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'copy';
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
     setIsDragging(false);
-    
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFile(e.dataTransfer.files[0]);
+    if (disabled) return;
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      processFile(file);
+      e.dataTransfer.clearData();
     }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      handleFile(e.target.files[0]);
+    if (e.target.files && e.target.files.length > 0) {
+      processFile(e.target.files[0]);
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
   };
 
-  const handleFile = (file: File) => {
-    if (isUploading) return;
-    
-    setIsUploading(true);
-    setFileName(file.name);
-    setIsComplete(false);
-    
-    // Simulate upload progress
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += 5;
-      setUploadProgress(progress);
-      
-      if (progress >= 100) {
-        clearInterval(interval);
-        
-        // Simulate a small delay before marking as complete
-        setTimeout(() => {
-          setIsUploading(false);
-          setIsComplete(true);
-          if (onFileUpload) onFileUpload(file);
-        }, 500);
-      }
-    }, 100);
+  const processFile = (file: File | null) => {
+    if (file && onFileUpload && !disabled) {
+      setFileName(file.name);
+      setIsUploading(true);
+      setIsComplete(false);
+      setTimeout(() => {
+        onFileUpload(file);
+        setIsUploading(false);
+        setIsComplete(true);
+        setTimeout(() => setIsComplete(false), 2000);
+      }, 1000);
+    } else {
+      setFileName(null);
+    }
+  };
+
+  const handleClick = () => {
+    if (!disabled && fileInputRef.current) {
+      fileInputRef.current.click();
+    }
   };
 
   const getFileIcon = () => {
-    if (fileName.toLowerCase().endsWith('.pdf')) {
+    if (fileName?.toLowerCase().endsWith('.pdf')) {
       return <FileText className="h-6 w-6 text-red-500" />;
     }
-    if (fileName.toLowerCase().match(/\.(jpe?g|png|gif)$/)) {
+    if (fileName?.toLowerCase().match(/\.(jpe?g|png|gif)$/)) {
       return <FileText className="h-6 w-6 text-blue-500" />;
     }
     return <File className="h-6 w-6 text-gray-500" />;
@@ -91,43 +107,42 @@ export function FileUploadCard({
     setIsUploading(false);
     setUploadProgress(0);
     setIsComplete(false);
-    setFileName("");
+    setFileName(null);
   };
 
   return (
     <Card 
       className={cn(
-        "border-dashed transition-all h-full", 
-        isDragging ? "border-accent bg-accent/5 shadow-md" : "border-border", 
+        "border-2 border-dashed p-6 text-center transition-colors duration-200 ease-in-out", 
+        isDragging ? "border-primary bg-primary/10" : "border-border hover:border-primary/50",
+        disabled ? "opacity-60 cursor-not-allowed" : "cursor-pointer",
         className
       )}
-      onDragOver={handleDragOver}
+      onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
       onDrop={handleDrop}
+      onClick={handleClick}
     >
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="hidden"
+        onChange={handleFileChange}
+        accept={acceptedFiles}
+        disabled={disabled}
+      />
       <CardContent className="p-6 flex flex-col items-center justify-center text-center h-full">
         {!isUploading && !isComplete ? (
           <>
-            <div className="w-16 h-16 rounded-full bg-accent/20 flex items-center justify-center mb-4 animate-pulse-slow">
-              <Upload className="h-8 w-8 text-accent" />
+            <div className={cn("w-16 h-16 rounded-full flex items-center justify-center mb-4", disabled ? "bg-muted" : "bg-primary/10")}>
+              <Upload className={cn("h-8 w-8", disabled ? "text-muted-foreground" : "text-primary")} />
             </div>
-            <h3 className="text-lg font-medium mb-1">{title}</h3>
+            <h3 className="font-medium text-lg mb-1">{title}</h3>
             <p className="text-sm text-muted-foreground mb-6">{description}</p>
-            <label className="inline-block">
-              <input
-                type="file"
-                className="hidden"
-                accept={acceptedFiles}
-                onChange={handleFileChange}
-              />
-              <div className="px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium cursor-pointer hover:bg-accent/90 shadow-sm hover:shadow transition-all inline-flex items-center gap-2">
-                <Upload className="h-4 w-4" />
-                Browse Files
-              </div>
-            </label>
-            <p className="text-xs text-muted-foreground mt-4">
-              PDF, JPG, PNG up to 10MB
-            </p>
+            <Button variant="outline" size="sm" disabled={disabled} onClick={(e) => e.stopPropagation()}>
+              Choose File
+            </Button>
           </>
         ) : (
           <div className="w-full">
@@ -140,7 +155,7 @@ export function FileUploadCard({
                 )}
               </div>
               <div className="flex-1 text-left">
-                <p className="font-medium truncate max-w-[200px]">{fileName}</p>
+                <p className="font-medium truncate max-w-[200px]">{fileName || 'Processing file'}</p>
                 <p className="text-sm text-muted-foreground">
                   {isComplete ? "Upload complete" : "Uploading..."}
                 </p>

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -10,91 +9,151 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useDashboard } from "@/contexts/DashboardContext";
 
-// Mock data for documents
-const mockDocuments = [
-  {
-    id: "doc1",
-    name: "Form 16 (2023-24).pdf",
-    type: "application/pdf",
-    created_at: new Date().toISOString(),
-    metadata: { size: 245000, mimetype: "application/pdf" }
-  },
-  {
-    id: "doc2",
-    name: "Salary Slip March 2023.pdf",
-    type: "application/pdf",
-    created_at: new Date(Date.now() - 86400000).toISOString(),
-    metadata: { size: 128000, mimetype: "application/pdf" }
-  }
-];
+// Define type for fetched document data
+interface UserDocument {
+  id: number;
+  user_id: number;
+  original_filename: string;
+  upload_timestamp: string;
+  identified_type: string | null;
+  parsed_data_json?: string; // Keep original string if needed
+  parsed_data: Record<string, any> | null; // Parsed JSON object
+  parseError?: string;
+}
 
 export default function Documents() {
-  const [documents, setDocuments] = useState<any[]>([]);
+  const [documents, setDocuments] = useState<UserDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
   const { authState } = useAuth();
   const isMobile = useIsMobile();
+  const { updateDashboardData } = useDashboard();
   
-  useEffect(() => {
-    // Simulate loading documents
-    setTimeout(() => {
-      setDocuments(mockDocuments);
+  const fetchDocuments = async () => {
+    if (!authState.token) {
+      setError("Authentication error - cannot fetch documents.");
       setLoading(false);
-    }, 1000);
-  }, []);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/documents', {
+        headers: {
+          'Authorization': `Bearer ${authState.token}`,
+        }
+      });
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || `Failed to fetch documents: ${response.statusText}`);
+      }
+      const data = await response.json();
+      console.log("Fetched documents:", data.documents);
+      setDocuments(data.documents || []);
+    } catch (err: any) {
+      console.error("Error fetching documents:", err);
+      setError(err.message || "Failed to load documents.");
+      setDocuments([]); // Clear documents on error
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (authState.token) {
+      fetchDocuments();
+    }
+    if (!authState.isLoading && !authState.token) {
+      setDocuments([]);
+      setLoading(false);
+    }
+  }, [authState.token, authState.isLoading]);
   
   const handleFileUpload = async (file: File) => {
+    if (!authState.token) {
+      toast({ title: "Error", description: "Authentication token not found. Please log in again.", variant: "destructive" });
+      return;
+    }
+    if (file.type !== 'application/pdf') {
+        toast({ title: "Invalid File Type", description: "Please upload PDF documents only.", variant: "destructive" });
+        return;
+    }
+
+    setUploading(true);
+    console.log("Starting upload from Documents page:", file.name);
+
+    const formData = new FormData();
+    formData.append('document', file);
+
     try {
-      setUploading(true);
-      
-      // Simulate upload delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Create mock document entry
-      const newDoc = {
-        id: `doc-${Date.now()}`,
-        name: file.name,
-        type: file.type,
-        created_at: new Date().toISOString(),
-        metadata: { size: file.size, mimetype: file.type }
-      };
-      
-      setDocuments(prev => [newDoc, ...prev]);
-      
-      toast({
-        title: 'Document uploaded successfully',
-        description: 'We are now processing your document.',
-      });
+       const response = await fetch('/api/documents/upload', {
+         method: 'POST',
+         body: formData,
+         headers: {
+             'Authorization': `Bearer ${authState.token}`,
+         }
+       });
+
+       const result = await response.json();
+       if (!response.ok) {
+           throw new Error(result.error || `Upload failed with status: ${response.status}`);
+       }
+
+       console.log("Upload successful, Backend Response:", result);
+
+       if (result.parsedData) {
+           updateDashboardData({ 
+               estimatedAnnualGross: result.parsedData.estimatedAnnualGross, 
+               estimatedTaxOldRegime: result.parsedData.taxOldRegime,
+               estimatedTaxNewRegime: result.parsedData.taxNewRegime,
+               estimatedTaxSavings: result.parsedData.taxSavings,
+               recommendedRegime: result.parsedData.recommendedRegime,
+               financialYear: result.parsedData.financialYear,
+               latestParsedSalaryData: result.parsedData 
+           });
+            await fetchDocuments();
+       } else {
+           console.warn("Parsed data not found in upload response.");
+       }
+
+       toast({
+         title: "Upload Successful",
+         description: `${file.name} processed. Dashboard updated.`,
+       });
+
     } catch (error: any) {
-      console.error('Error uploading file:', error);
+      console.error("Upload failed:", error);
       toast({
-        title: 'Error uploading document',
-        description: error.message || "An unknown error occurred",
-        variant: 'destructive',
+        title: "Upload Failed",
+        description: error.message || "An unknown error occurred during upload.",
+        variant: "destructive",
       });
     } finally {
       setUploading(false);
     }
   };
   
-  const handleDeleteDocument = async (id: string) => {
+  const handleDeleteDocument = async (id: number) => {
+    console.log("Attempting to delete doc ID (needs backend):", id);
     try {
       setDocuments(documents.filter(doc => doc.id !== id));
       
       toast({
-        title: 'Document deleted',
-        description: 'The document has been removed.',
+        title: 'Document deleted (UI only)',
+        description: 'The document has been removed from the list.',
       });
-    } catch (error: any) {
+    } catch (error: any) { 
       console.error('Error deleting document:', error);
       toast({
         title: 'Error deleting document',
         description: error.message || "An unknown error occurred",
         variant: 'destructive',
       });
-    }
+    } 
   };
   
   return (
@@ -125,7 +184,7 @@ export default function Documents() {
               onFileUpload={handleFileUpload}
             />
             
-            <Card className="flex flex-col border-dashed p-6 bg-gradient-to-br from-background to-primary/10 hover:shadow-lg transition-all cursor-pointer">
+            <Card className="flex flex-col p-6 bg-gradient-to-br from-background to-primary/10 hover:shadow-lg transition-all cursor-pointer">
               <div className="text-center flex-1 flex flex-col items-center justify-center">
                 <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-primary/20 mb-4">
                   <Camera className="h-6 w-6 text-primary" />
@@ -138,7 +197,7 @@ export default function Documents() {
               </div>
             </Card>
             
-            <Card className="flex flex-col border-dashed p-6 bg-gradient-to-br from-background to-orange-500/10 hover:shadow-lg transition-all cursor-pointer">
+            <Card className="flex flex-col p-6 bg-gradient-to-br from-background to-orange-500/10 hover:shadow-lg transition-all cursor-pointer">
               <div className="text-center flex-1 flex flex-col items-center justify-center">
                 <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-orange-500/20 mb-4">
                   <Smartphone className="h-6 w-6 text-orange-500" />
@@ -161,12 +220,25 @@ export default function Documents() {
               </Button>
             </div>
             
-            {loading ? (
+            {loading && (
               <div className="py-12 text-center">
                 <div className="animate-pulse">Loading documents...</div>
               </div>
-            ) : documents.length > 0 ? (
-              <div className="rounded-lg border overflow-hidden bg-card">
+            )}
+            {error && !loading && (
+                <Card className="py-12 text-center border-destructive bg-destructive/10">
+                 <div className="flex flex-col items-center gap-3">
+                    <div className="w-16 h-16 rounded-full bg-destructive/20 flex items-center justify-center">
+                        <AlertCircle className="h-8 w-8 text-destructive" />
+                    </div>
+                    <h3 className="text-lg font-medium text-destructive">Error Loading Documents</h3>
+                    <p className="text-sm text-destructive/80 max-w-md mx-auto">{error}</p>
+                    <Button variant="destructive" onClick={fetchDocuments} className="mt-4">Retry</Button>
+                 </div>
+                </Card>
+            )}
+            {!loading && !error && documents.length > 0 && (
+              <div className="rounded-lg overflow-hidden bg-card">
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
@@ -174,7 +246,6 @@ export default function Documents() {
                         <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Name</th>
                         <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground hidden md:table-cell">Type</th>
                         <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground hidden md:table-cell">Date Added</th>
-                        <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground hidden md:table-cell">Size</th>
                         <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Actions</th>
                       </tr>
                     </thead>
@@ -187,28 +258,25 @@ export default function Documents() {
                                 <FileText className="h-4 w-4 text-accent" />
                               </div>
                               <span className="font-medium truncate max-w-[150px] md:max-w-xs">
-                                {typeof doc.name === 'string' && doc.name.includes('/') 
-                                  ? doc.name.split('/').pop() 
-                                  : doc.name}
+                                {doc.original_filename}
                               </span>
                             </div>
                           </td>
                           <td className="py-3 px-4 text-muted-foreground hidden md:table-cell">
-                            {doc.metadata?.mimetype || "Document"}
+                            <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 capitalize">
+                                {doc.identified_type?.replace('_', ' ') || 'Unknown'}
+                            </span>
                           </td>
                           <td className="py-3 px-4 text-muted-foreground hidden md:table-cell">
-                            {new Date(doc.created_at).toLocaleDateString()}
-                          </td>
-                          <td className="py-3 px-4 text-muted-foreground hidden md:table-cell">
-                            {(doc.metadata?.size / 1024).toFixed(0)} KB
+                            {new Date(doc.upload_timestamp).toLocaleDateString()}
                           </td>
                           <td className="py-3 px-4">
                             <div className="flex items-center justify-end gap-2">
-                              <Button variant="ghost" size="icon" className="text-muted-foreground">
+                              <Button variant="ghost" size="icon" className="text-muted-foreground" title="View Details (Not Implemented)">
                                 <Eye className="h-4 w-4" />
                                 <span className="sr-only">View</span>
                               </Button>
-                              <Button variant="ghost" size="icon" className="text-muted-foreground">
+                              <Button variant="ghost" size="icon" className="text-muted-foreground" title="Download (Not Implemented)">
                                 <Download className="h-4 w-4" />
                                 <span className="sr-only">Download</span>
                               </Button>
@@ -217,6 +285,7 @@ export default function Documents() {
                                 size="icon" 
                                 className="text-destructive"
                                 onClick={() => handleDeleteDocument(doc.id)}
+                                title="Delete (Requires Backend)"
                               >
                                 <Trash2 className="h-4 w-4" />
                                 <span className="sr-only">Delete</span>
@@ -229,8 +298,9 @@ export default function Documents() {
                   </table>
                 </div>
               </div>
-            ) : (
-              <Card className="py-12 text-center border-dashed">
+            )}
+             {!loading && !error && documents.length === 0 && (
+              <Card className="py-12 text-center">
                 <div className="flex flex-col items-center gap-3">
                   <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center">
                     <FileText className="h-8 w-8 text-muted-foreground" />
@@ -281,23 +351,15 @@ export default function Documents() {
         </TabsContent>
         
         <TabsContent value="income" className="pt-6">
-          <div className="text-center py-12">
-            <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
-              <FileText className="h-8 w-8 text-muted-foreground" />
-            </div>
-            <h3 className="text-xl font-medium mb-2">No Income Documents</h3>
-            <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-              Upload your Form 16, salary slips, and other income proofs to automatically
-              extract income details
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button className="gap-2">
-                <UploadCloud className="h-4 w-4" />
-                Upload Income Documents
-              </Button>
-              <Button variant="outline">Learn More</Button>
-            </div>
-          </div>
+          <h2 className="text-xl font-semibold mb-4">Upload Income Proof</h2>
+          <p className="text-muted-foreground mb-6">Upload monthly salary slips or Form 16 (PDF format only).</p>
+          <FileUploadCard
+              title="Upload Salary Slip / Form 16"
+              description="Drag and drop your PDF document or click to browse"
+              onFileUpload={handleFileUpload}
+              disabled={uploading}
+              acceptedFiles=".pdf"
+            />
         </TabsContent>
         
         <TabsContent value="investment" className="pt-6">

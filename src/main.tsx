@@ -1,23 +1,23 @@
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App";
+import "./index.css";
 
-import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
-import App from './App.tsx';
-import './index.css';
-
-// Clear any errors from previous runs
-console.clear();
-
-// Log that we're starting the app
-console.log('Starting TaxGenie application...');
-
-const rootElement = document.getElementById('root');
+// Find the root element
+const rootElement = document.getElementById("root");
 
 if (!rootElement) {
-  throw new Error('Root element not found');
+  throw new Error("Root element with ID 'root' not found in the document.");
 }
 
-createRoot(rootElement).render(
-  <StrictMode>
+// Add 'dark' class to the root html element for dark mode
+document.documentElement.classList.add('dark');
+
+// Create and render the React app
+const root = ReactDOM.createRoot(rootElement);
+
+root.render(
+  <React.StrictMode>
     <App />
-  </StrictMode>
+  </React.StrictMode>
 );

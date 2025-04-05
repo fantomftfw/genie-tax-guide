@@ -1,4 +1,3 @@
-
 import { Config } from 'tailwindcss'
 import { fontFamily } from "tailwindcss/defaultTheme"
 
@@ -59,6 +58,15 @@ const config = {
           secondary: "#4f46e5",
           light: "#e0e7ff",
           lightgray: "#f5f7ff",
+        },
+        dark: {
+          background: '#1A1A1A',
+          card: '#252525',
+          border: '#333333',
+          foreground: '#E0E0E0',
+          mutedForeground: '#A0A0A0',
+          primary: '#7C3AED',
+          accent: '#A78BFA',
         }
       },
       borderRadius: {

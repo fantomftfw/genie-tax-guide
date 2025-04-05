@@ -1,7 +1,6 @@
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, Menu, Search, Upload, User, LogOut } from "lucide-react";
+import { Bell, Menu, Search, Upload, User, LogOut, PanelLeftClose, PanelRightClose } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
@@ -17,10 +16,11 @@ import {
 import { Input } from "@/components/ui/input";
 
 interface HeaderProps {
-  onMenuClick?: () => void;
+  sidebarCollapsed: boolean;
+  onToggleSidebar: () => void;
 }
 
-export function Header({ onMenuClick }: HeaderProps) {
+export function Header({ sidebarCollapsed, onToggleSidebar }: HeaderProps) {
   const { authState, signOut } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -48,29 +48,18 @@ export function Header({ onMenuClick }: HeaderProps) {
   };
   
   return (
-    <header className="fixed top-0 left-0 right-0 z-30 backdrop-blur-lg bg-background/90 border-b">
+    <header className="sticky top-0 z-30 backdrop-blur-lg bg-background/90 border-b">
       <div className="flex h-16 items-center justify-between px-4">
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 md:gap-4">
           <Button 
             variant="ghost" 
             size="icon" 
-            className="md:hidden"
-            onClick={onMenuClick}
+            className="hidden md:inline-flex"
+            onClick={onToggleSidebar}
           >
-            <Menu className="h-5 w-5" />
-            <span className="sr-only">Toggle navigation menu</span>
+            {sidebarCollapsed ? <PanelRightClose className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
+            <span className="sr-only">Toggle sidebar</span>
           </Button>
-          
-          <div className="flex items-center gap-2">
-            <div className="bg-gradient-to-r from-accent to-primary rounded-md p-0.5">
-              <div className="bg-background rounded-sm p-1">
-                <span className="text-xl font-bold flex items-center">
-                  <span className="text-primary">Tax</span>
-                  <span className="text-accent">Genie</span>
-                </span>
-              </div>
-            </div>
-          </div>
         </div>
         
         <div className="hidden md:flex items-center max-w-md w-full mx-4">

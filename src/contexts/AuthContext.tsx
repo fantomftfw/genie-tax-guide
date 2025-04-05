@@ -1,34 +1,39 @@
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
-
+// Define more specific types based on backend responses
 type User = {
-  id: string;
-  email?: string;
+  id: number; // Assuming backend uses integer IDs
+  email: string;
+  onboarding_completed: boolean;
+};
+
+// Profile can be the same as User for now, or expanded later
+type ProfileData = User & { // Example: adding full_name if needed later
+  full_name?: string | null;
+  // Add other profile fields as needed
 };
 
 export type AuthState = {
   user: User | null;
-  session: any;
+  token: string | null; // Store JWT
   isLoading: boolean;
 };
 
-type ProfileData = {
-  id: string;
-  full_name: string | null;
-  avatar_url: string | null;
-  onboarding_completed: boolean;
-};
 
 type AuthContextType = {
   authState: AuthState;
-  profile: ProfileData | null;
-  signIn: (email: string, password: string) => Promise<{ error: any | null }>;
-  signUp: (email: string, password: string) => Promise<{ error: any | null }>;
-  signOut: () => Promise<void>;
-  updateProfile: (data: Partial<ProfileData>) => Promise<void>;
+  profile: ProfileData | null; // Keep profile separate if it contains more/different data
+  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  signUp: (email: string, password: string) => Promise<{ error: string | null }>;
+  signOut: () => void;
+  updateProfile: (data: Partial<ProfileData>) => Promise<{ error: string | null }>; // Re-enable type
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Define API base URL (could be env variable)
+// Use relative paths now, letting Vite proxy handle it
+const API_BASE_URL = '/api';
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -41,124 +46,203 @@ export const useAuth = () => {
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [authState, setAuthState] = useState<AuthState>({
     user: null,
-    session: null,
-    isLoading: true,
+    token: null,
+    isLoading: true, // Start loading until auth status is checked
   });
-  const [profile, setProfile] = useState<ProfileData | null>(null);
-  
-  // Check for stored auth on mount
-  useEffect(() => {
+  const [profile, setProfile] = useState<ProfileData | null>(null); // Keep profile separate
+
+  // Function to check auth status by verifying token and fetching profile
+  const checkAuthStatus = useCallback(async () => {
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      setAuthState({ user: null, token: null, isLoading: false });
+      setProfile(null);
+      return;
+    }
+
     try {
-      const storedUser = localStorage.getItem('user');
-      const storedProfile = localStorage.getItem('profile');
-      
-      if (storedUser) {
-        const user = JSON.parse(storedUser);
-        setAuthState({
-          user,
-          session: { user },
-          isLoading: false,
-        });
-        
-        if (storedProfile) {
-          setProfile(JSON.parse(storedProfile));
-        } else {
-          // Create default profile if none exists
-          const defaultProfile: ProfileData = {
-            id: user.id,
-            full_name: user.email ? user.email.split('@')[0] : null,
-            avatar_url: null,
-            onboarding_completed: false,
-          };
-          setProfile(defaultProfile);
-          localStorage.setItem('profile', JSON.stringify(defaultProfile));
-        }
-      } else {
-        setAuthState({
-          user: null,
-          session: null,
-          isLoading: false,
-        });
-      }
-    } catch (error) {
-      console.error("Error loading auth state:", error);
-      setAuthState({
-        user: null,
-        session: null,
-        isLoading: false,
+      // Fetch profile using the token
+      const response = await fetch(`${API_BASE_URL}/user/profile`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
       });
-    }
-  }, []);
 
-  // Mock authentication functions
-  const signIn = async (email: string, password: string) => {
-    try {
-      if (email && password) {
-        const user = {
-          id: `user_${Math.random().toString(36).substr(2, 9)}`,
-          email,
-        };
-        
-        const mockProfile = {
-          id: user.id,
-          full_name: email.split('@')[0],
-          avatar_url: null,
-          onboarding_completed: false,
-        };
-        
+      if (!response.ok) {
+        // Token might be invalid or expired
+        if (response.status === 401 || response.status === 403) {
+            console.log("Token invalid/expired, signing out.");
+            signOut(); // Use the signOut function to clear state and token
+        } else {
+             throw new Error(`Failed to fetch profile: ${response.statusText}`);
+        }
+        return;
+      }
+
+      const data = await response.json();
+      if (data.user) {
+        console.log("Auth check successful, user:", data.user);
         setAuthState({
-          user,
-          session: { user },
+          user: data.user,
+          token: token,
           isLoading: false,
         });
-        
-        setProfile(mockProfile);
-        
-        // Store in localStorage
-        localStorage.setItem('user', JSON.stringify(user));
-        localStorage.setItem('profile', JSON.stringify(mockProfile));
-        
-        return { error: null };
+        setProfile(data.user); // Set profile data
+      } else {
+         throw new Error("User data not found in profile response");
       }
-      
-      return { error: { message: "Invalid credentials" } };
+
     } catch (error) {
+      console.error("Error checking auth status:", error);
+      // Clear state on error
+      signOut();
+    }
+  }, []); // No dependencies needed initially
+
+  // Check auth status on initial mount
+  useEffect(() => {
+    checkAuthStatus();
+  }, [checkAuthStatus]);
+
+  // --- API-based Authentication Functions ---
+
+  const signIn = async (email: string, password: string): Promise<{ error: string | null }> => {
+    setAuthState(prev => ({ ...prev, isLoading: true }));
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Login failed');
+      }
+
+      if (data.accessToken && data.user) {
+        localStorage.setItem('authToken', data.accessToken);
+        setAuthState({
+          user: data.user,
+          token: data.accessToken,
+          isLoading: false,
+        });
+        setProfile(data.user);
+        console.log("Sign in successful");
+        return { error: null };
+      } else {
+        throw new Error('Invalid login response from server');
+      }
+    } catch (error: any) {
       console.error("Sign in error:", error);
-      return { error };
+      setAuthState({ user: null, token: null, isLoading: false });
+      setProfile(null);
+      return { error: error.message || 'An unknown error occurred during sign in.' };
     }
   };
 
-  const signUp = async (email: string, password: string) => {
-    return signIn(email, password);
+  const signUp = async (email: string, password: string): Promise<{ error: string | null }> => {
+     setAuthState(prev => ({ ...prev, isLoading: true }));
+     try {
+        const response = await fetch(`${API_BASE_URL}/auth/signup`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email, password }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Sign up failed');
+        }
+
+        // Optionally sign in the user automatically after successful signup
+        // Or prompt them to log in
+        console.log("Sign up successful:", data.message);
+        setAuthState(prev => ({ ...prev, isLoading: false })); // Stop loading after signup
+        // Don't set user/token state here, require login after signup
+        return { error: null };
+
+     } catch (error: any) {
+        console.error("Sign up error:", error);
+        setAuthState({ user: null, token: null, isLoading: false }); // Reset on error
+        return { error: error.message || 'An unknown error occurred during sign up.' };
+     }
   };
 
-  const signOut = async () => {
+  const signOut = () => {
+    console.log("Signing out...");
+    localStorage.removeItem('authToken');
     setAuthState({
       user: null,
-      session: null,
+      token: null,
       isLoading: false,
     });
     setProfile(null);
-    localStorage.removeItem('user');
-    localStorage.removeItem('profile');
   };
 
-  const updateProfile = async (data: Partial<ProfileData>) => {
-    if (!profile) return;
-    
-    const updatedProfile = { ...profile, ...data };
-    setProfile(updatedProfile);
-    localStorage.setItem('profile', JSON.stringify(updatedProfile));
+  // --- Update Profile Function ---
+  const updateProfile = async (dataToUpdate: Partial<ProfileData>): Promise<{ error: string | null }> => {
+    if (!authState.token) {
+        return { error: "Not authenticated" };
+    }
+    // Only allow updating specific fields for now (e.g., onboarding_completed)
+    // We might need a more specific type for the input data if updating other fields
+    const updatePayload: { onboarding_completed?: boolean } = {};
+    if (typeof dataToUpdate.onboarding_completed === 'boolean') {
+        updatePayload.onboarding_completed = dataToUpdate.onboarding_completed;
+    } else {
+        // Optionally handle other profile fields if needed
+        // console.warn("Only updating onboarding_completed is currently supported.");
+        return { error: "Invalid data for profile update." }; // Or handle specific fields
+    }
+
+    setAuthState(prev => ({ ...prev, isLoading: true })); // Optional: Indicate loading
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/user/profile`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authState.token}`,
+            },
+            body: JSON.stringify(updatePayload),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.error || 'Failed to update profile');
+        }
+
+        // Update local profile state on success
+        setProfile(prevProfile => prevProfile ? { ...prevProfile, ...updatePayload } : null);
+        // Also update user in authState if it holds same data
+        setAuthState(prev => prev.user ? { ...prev, isLoading: false, user: {...prev.user, ...updatePayload} } : { ...prev, isLoading: false });
+
+        console.log("Profile update successful");
+        return { error: null };
+
+    } catch (error: any) {
+        console.error("Update profile error:", error);
+        setAuthState(prev => ({ ...prev, isLoading: false })); // Stop loading on error
+        return { error: error.message || 'An unknown error occurred during profile update.' };
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ 
-      authState, 
-      profile, 
-      signIn, 
-      signUp, 
+    <AuthContext.Provider value={{
+      authState,
+      profile,
+      signIn,
+      signUp,
       signOut,
-      updateProfile
+      updateProfile // Add back to context value
     }}>
       {children}
     </AuthContext.Provider>

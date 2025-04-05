@@ -1,4 +1,3 @@
-
 import { useLocation } from "react-router-dom";
 import { 
   Home, 
@@ -74,53 +73,28 @@ export function Sidebar({ collapsed = false }: SidebarProps) {
   const location = useLocation();
   
   return (
-    <div className={cn("flex h-full flex-col gap-2 p-2", collapsed && "items-center")}>
-      {!collapsed && (
-        <div className="px-3 py-2">
-          <h2 className="mb-2 px-4 text-lg font-semibold">TaxGenie</h2>
-          <div className="mb-8 px-4">
-            <div className="relative h-2 rounded-full bg-muted overflow-hidden mb-1">
-              <div
-                className="absolute left-0 top-0 h-full bg-gradient-to-r from-primary to-accent rounded-full"
-                style={{ width: "35%" }}
-              ></div>
-            </div>
-            <p className="text-xs text-muted-foreground">35% profile complete</p>
-          </div>
-        </div>
-      )}
-      
-      {collapsed && <div className="h-16"></div>}
-      
-      <div className={cn("space-y-1", collapsed ? "px-0" : "px-3")}>
-        <SidebarItem icon={<Home size={20} />} title="Dashboard" path="/" collapsed={collapsed} />
-        <SidebarItem icon={<User size={20} />} title="Profile" path="/profile" collapsed={collapsed} />
-        <SidebarItem icon={<UploadCloud size={20} />} title="Upload Docs" path="/documents" collapsed={collapsed} />
-        <SidebarItem icon={<Calculator size={20} />} title="Tax Calculator" path="/calculator" collapsed={collapsed} />
-        <SidebarItem icon={<LineChart size={20} />} title="Tax Insights" path="/insights" collapsed={collapsed} />
-        <SidebarItem icon={<Wallet size={20} />} title="Tax Savings" path="/savings" collapsed={collapsed} />
-        <SidebarItem icon={<BookOpen size={20} />} title="Tax Guide" path="/guide" collapsed={collapsed} />
+    <div className={cn(
+        "flex h-full flex-col gap-2 p-3 bg-background",
+         collapsed ? "items-center w-16" : "w-60"
+    )}>
+      <div className={cn("flex items-center h-14 border-b border-border", collapsed ? "justify-center" : "px-4")}>
+         <NavLink to="/" className="flex items-center gap-2 font-semibold text-lg text-foreground">
+             <span className="inline-block p-1.5 bg-primary/10 rounded-lg text-primary">TG</span> 
+             {!collapsed && <span>TaxGenie</span>}
+         </NavLink>
       </div>
       
-      <div className={cn("mt-auto", collapsed ? "px-0" : "px-3 py-2")}>
+      <nav className={cn("flex-1 space-y-1 overflow-y-auto py-4", collapsed ? "px-0" : "px-3")}>
+        <SidebarItem icon={<Home size={collapsed ? 24 : 20} />} title="Dashboard" path="/" collapsed={collapsed} />
+        <SidebarItem icon={<User size={collapsed ? 24 : 20} />} title="Profile" path="/profile" collapsed={collapsed} />
+        <SidebarItem icon={<UploadCloud size={collapsed ? 24 : 20} />} title="Upload Docs" path="/documents" collapsed={collapsed} />
+        <SidebarItem icon={<Calculator size={collapsed ? 24 : 20} />} title="Tax Calculator" path="/calculator" collapsed={collapsed} />
+      </nav>
+      
+      <div className={cn("mt-auto border-t border-border pt-3", collapsed ? "px-0 flex flex-col items-center" : "px-3 pb-2")}>
         <div className={cn("space-y-1", collapsed ? "px-0" : "")}>
-          <SidebarItem icon={<Settings size={20} />} title="Settings" path="/settings" collapsed={collapsed} />
-          <SidebarItem icon={<HelpCircle size={20} />} title="Help & Support" path="/help" collapsed={collapsed} />
+          <SidebarItem icon={<Settings size={collapsed ? 24 : 20} />} title="Settings" path="/settings" collapsed={collapsed} />
         </div>
-        
-        {!collapsed && (
-          <div className="mt-6 px-4 py-3 bg-primary/5 rounded-lg">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center">
-                <Lightbulb className="h-4 w-4 text-accent" />
-              </div>
-              <div>
-                <p className="text-sm font-medium">Pro Tip</p>
-                <p className="text-xs text-muted-foreground">Upload Form 16 to automatically calculate tax</p>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

@@ -1,16 +1,15 @@
-
 import { ArrowDownIcon, ArrowUpIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface TaxSummaryCardProps {
   title: string;
-  amount: number;
+  amount: number | null | undefined;
   previousAmount?: number;
   percentChange?: number;
-  currency?: string;
   className?: string;
   variant?: "default" | "income" | "saving" | "expense";
+  footer?: React.ReactNode;
 }
 
 export function TaxSummaryCard({
@@ -18,56 +17,35 @@ export function TaxSummaryCard({
   amount,
   previousAmount,
   percentChange,
-  currency = "₹",
   className,
   variant = "default",
+  footer,
 }: TaxSummaryCardProps) {
-  const formatAmount = (value: number) => {
-    return new Intl.NumberFormat("en-IN", {
-      maximumFractionDigits: 0,
-    }).format(value);
-  };
-  
   const isIncrease = percentChange !== undefined ? percentChange > 0 : undefined;
   const variants = {
-    default: "border-border bg-card",
-    income: "border-green-100 bg-green-50",
-    saving: "border-tax-light bg-tax-lightgray",
-    expense: "border-red-100 bg-red-50",
+    default: "",
+    income: "",
+    saving: "",
+    expense: "",
+  };
+
+  const formatCurrency = (value: number | null | undefined) => {
+    if (value === null || value === undefined) return 'N/A';
+    if (!Number.isFinite(value)) return 'Invalid Number'; 
+    return `₹ ${value.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
   };
 
   return (
-    <Card className={cn("overflow-hidden", variants[variant], className)}>
-      <CardContent className="p-6">
+    <Card className={cn("overflow-hidden", className)}>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <span className="text-2xl font-bold tracking-tight">
+          {formatCurrency(amount)}
+        </span>
+      </CardHeader>
+      <CardContent className="p-6 pt-0">
         <div className="flex flex-col gap-2">
-          <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold tracking-tight">
-              {currency} {formatAmount(amount)}
-            </span>
-            {percentChange !== undefined && (
-              <div
-                className={cn(
-                  "flex items-center text-xs",
-                  isIncrease ? "text-green-500" : "text-red-500"
-                )}
-              >
-                <span>
-                  {isIncrease ? (
-                    <ArrowUpIcon className="h-3 w-3" />
-                  ) : (
-                    <ArrowDownIcon className="h-3 w-3" />
-                  )}
-                </span>
-                <span className="ml-1">{Math.abs(percentChange)}%</span>
-              </div>
-            )}
-          </div>
-          {previousAmount !== undefined && (
-            <p className="text-xs text-muted-foreground">
-              Previous: {currency} {formatAmount(previousAmount)}
-            </p>
-          )}
+          {footer && <div className="mt-1 text-xs text-muted-foreground">{footer}</div>}
         </div>
       </CardContent>
     </Card>
