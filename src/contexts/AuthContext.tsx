@@ -48,21 +48,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   
   // Check for stored auth on mount
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    const storedProfile = localStorage.getItem('profile');
-    
-    if (storedUser) {
-      const user = JSON.parse(storedUser);
-      setAuthState({
-        user,
-        session: { user },
-        isLoading: false,
-      });
+    try {
+      const storedUser = localStorage.getItem('user');
+      const storedProfile = localStorage.getItem('profile');
       
-      if (storedProfile) {
-        setProfile(JSON.parse(storedProfile));
+      if (storedUser) {
+        const user = JSON.parse(storedUser);
+        setAuthState({
+          user,
+          session: { user },
+          isLoading: false,
+        });
+        
+        if (storedProfile) {
+          setProfile(JSON.parse(storedProfile));
+        } else {
+          // Create default profile if none exists
+          const defaultProfile: ProfileData = {
+            id: user.id,
+            full_name: user.email ? user.email.split('@')[0] : null,
+            avatar_url: null,
+            onboarding_completed: false,
+          };
+          setProfile(defaultProfile);
+          localStorage.setItem('profile', JSON.stringify(defaultProfile));
+        }
+      } else {
+        setAuthState({
+          user: null,
+          session: null,
+          isLoading: false,
+        });
       }
-    } else {
+    } catch (error) {
+      console.error("Error loading auth state:", error);
       setAuthState({
         user: null,
         session: null,
@@ -74,8 +93,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Mock authentication functions
   const signIn = async (email: string, password: string) => {
     try {
-      // In a real app, this would be an API call
-      // Here we're just creating a mock user
       if (email && password) {
         const user = {
           id: `user_${Math.random().toString(36).substr(2, 9)}`,
@@ -106,13 +123,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       return { error: { message: "Invalid credentials" } };
     } catch (error) {
+      console.error("Sign in error:", error);
       return { error };
     }
   };
 
   const signUp = async (email: string, password: string) => {
-    // In a real app, this would be different from signIn
-    // For this mock version, we'll use the same implementation
     return signIn(email, password);
   };
 

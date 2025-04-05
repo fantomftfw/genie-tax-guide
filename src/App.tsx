@@ -12,11 +12,20 @@ import NotFound from "./pages/NotFound";
 import Auth from "./pages/Auth";
 import Onboarding from "./pages/Onboarding";
 
-const queryClient = new QueryClient();
+// Create a new query client
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 const AppRoutes = () => {
   const { authState, profile } = useAuth();
 
+  // Protected route component
   const AuthenticatedRoute = ({ children }: { children: React.ReactNode }) => {
     if (authState.isLoading) {
       // Show loading state
@@ -56,13 +65,14 @@ const AppRoutes = () => {
     return <>{children}</>;
   };
 
+  // Define routes
   return (
     <Routes>
       {/* Authenticated routes */}
       <Route path="/" element={<AuthenticatedRoute><Dashboard /></AuthenticatedRoute>} />
       <Route path="/calculator" element={<AuthenticatedRoute><Calculator /></AuthenticatedRoute>} />
       <Route path="/documents" element={<AuthenticatedRoute><Documents /></AuthenticatedRoute>} />
-      <Route path="/onboarding" element={<AuthenticatedRoute><Onboarding /></AuthenticatedRoute>} />
+      <Route path="/onboarding" element={<Onboarding />} />
 
       {/* Unauthenticated routes */}
       <Route path="/auth" element={<UnAuthenticatedRoute><Auth /></UnAuthenticatedRoute>} />
@@ -74,15 +84,17 @@ const AppRoutes = () => {
 };
 
 const App = () => {
+  console.log("App rendering");
+  
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <TooltipProvider>
-          <Toaster />
-          <Sonner />
           <BrowserRouter>
             <AppRoutes />
           </BrowserRouter>
+          <Toaster />
+          <Sonner />
         </TooltipProvider>
       </AuthProvider>
     </QueryClientProvider>
