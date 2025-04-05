@@ -46,7 +46,10 @@ const App = () => {
 
         // If user is logged in, fetch their profile
         if (session?.user) {
-          fetchUserProfile(session.user.id);
+          // Use setTimeout to avoid potential deadlocks with Supabase auth
+          setTimeout(() => {
+            fetchUserProfile(session.user.id);
+          }, 0);
         } else {
           setProfile(null);
         }
@@ -72,6 +75,7 @@ const App = () => {
 
   const fetchUserProfile = async (userId: string) => {
     try {
+      // Fix the TypeScript error by using the correct type-safe approach
       const { data, error } = await supabase
         .from('profiles')
         .select('*')

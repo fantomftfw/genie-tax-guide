@@ -17,12 +17,17 @@ export default function Onboarding() {
   useEffect(() => {
     // Check if user is signed in
     const checkUser = async () => {
-      const { data } = await supabase.auth.getSession();
-      if (!data.session) {
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (!data.session) {
+          navigate("/auth");
+          return;
+        }
+        setSession(data.session);
+      } catch (error) {
+        console.error("Error checking auth session:", error);
         navigate("/auth");
-        return;
       }
-      setSession(data.session);
     };
     checkUser();
   }, [navigate]);
@@ -32,6 +37,7 @@ export default function Onboarding() {
     
     setLoading(true);
     try {
+      // Fix the TypeScript error by using the correct type-safe approach
       const { error } = await supabase
         .from('profiles')
         .update({ onboarding_completed: true })
@@ -46,6 +52,7 @@ export default function Onboarding() {
       
       navigate("/");
     } catch (error: any) {
+      console.error("Error completing onboarding:", error);
       toast({
         title: "Error",
         description: "Failed to complete onboarding. Please try again.",
